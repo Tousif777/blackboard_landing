@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import UserModel from '../modals/UserModel';
 import { successResponse, errorResponse } from '../utils/response';
 
+//user controller
 const UserController = {
     getAllUsers: async (req: Request, res: Response): Promise<void> => {
         try {

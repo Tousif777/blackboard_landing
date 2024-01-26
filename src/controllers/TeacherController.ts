@@ -98,6 +98,7 @@ const TeacherController: any = {
 
     updateTeacher: async (req: Request, res: Response): Promise<void> => {
         try {
+            // Use multer middleware to handle file upload
             uploadFileMiddleware(req, res, async (err: any) => {
                 if (err instanceof multer.MulterError) {
                     console.error(err);
@@ -115,27 +116,47 @@ const TeacherController: any = {
                 // Access the file from the request object
                 const file: Express.Multer.File | undefined = req.file;
 
-                // Handle file upload if it exists in the request
-                let fileUrl: any = '';
-                if (file) {
-                    // Handle file upload logic here (use your uploadFile function)
-                    fileUrl = await uploadFile(file, 'teacher-profiles');
-                    updatedData.file = fileUrl; // Update the file URL in the update data
-                }
+                try {
+                    // Get the current data of the teacher
+                    const teacher = await TeacherModel.getTeacherById(teacherId);
 
-                // Check if the password is provided in the update data
-                if (updatedData.password) {
-                    // Use the hashPassword function to securely hash the password
-                    const hashedPassword = await hashPassword(updatedData.password);
-                    updatedData.password = hashedPassword; // Update the hashed password in the update data
-                }
+                    // Check if the teacher exists
+                    if (!teacher) {
+                        errorResponse(res, 404, 'Teacher not found');
+                        return;
+                    }
 
-                const updatedTeacher: any = await TeacherModel.updateTeacher(teacherId, updatedData);
+                    // Handle file upload if it exists in the request
+                    let fileUrl: any = '';
+                    if (file) {
+                        // Delete the existing file from AWS S3 if there is one
+                        if (teacher.file) {
+                            await deleteFile(teacher.file);
+                        }
 
-                if (updatedTeacher) {
-                    successResponse(res, 'Teacher updated successfully', { data: updatedTeacher });
-                } else {
-                    errorResponse(res, 404, 'Teacher not found');
+                        // Handle file upload logic here (use your uploadFile function)
+                        fileUrl = await uploadFile(file, 'teacher-profiles');
+                        updatedData.file = fileUrl; // Update the file URL in the update data
+                    }
+
+                    // Check if the password is provided in the update data
+                    if (updatedData.password) {
+                        // Use the hashPassword function to securely hash the password
+                        const hashedPassword = await hashPassword(updatedData.password);
+                        updatedData.password = hashedPassword; // Update the hashed password in the update data
+                    }
+
+                    // Update the teacher in the database
+                    const updatedTeacher: any = await TeacherModel.updateTeacher(teacherId, updatedData);
+
+                    if (updatedTeacher) {
+                        successResponse(res, 'Teacher updated successfully', { data: updatedTeacher });
+                    } else {
+                        errorResponse(res, 404, 'Teacher not found');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    errorResponse(res, 500, 'Internal Server Error');
                 }
             });
         } catch (error) {
@@ -147,7 +168,7 @@ const TeacherController: any = {
     deleteTeacher: async (req: Request, res: Response): Promise<void> => {
         try {
             const teacherId = parseInt(req.params.id);
-            
+
             // Get the teacher's data
             const teacher = await TeacherModel.getTeacherById(teacherId);
 
